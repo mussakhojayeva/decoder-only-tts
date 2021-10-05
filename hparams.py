@@ -12,7 +12,7 @@ max_db=0
 ################################
 # Model Parameters             #
 # ###############################
-batch_size=4
+batch_size=32
 n_epochs=100
 hidden_dim=256
 n_heads=4

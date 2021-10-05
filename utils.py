@@ -51,8 +51,9 @@ def get_spectrograms(fpath):
     return mel, mag
 
 
-def get_mask_from_lengths(lengths):
-    max_len = t.max(lengths).item()
+def get_mask_from_lengths(lengths, max_seq_len=None):
+    if max_seq_len: max_len = max_seq_len
+    else: max_len = t.max(lengths).item()
     ids = lengths.new_tensor(t.arange(0, max_len)).cuda()
     mask = (lengths.unsqueeze(1) <= ids).cuda()
     return mask

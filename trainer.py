@@ -26,10 +26,10 @@ def train_fn(model, dataloader, optimizer):
     model.train()
     for num, batch in tqdm(enumerate(dataloader), total=len(dataloader)):
         optimizer.zero_grad()
-        text_padded, text_lengths, mel_padded, mel_lengths, end_logits_padded = [
-            x.cuda() for x in batch
-        ]        
-        mel_pred, end_logits_pred = model(text_padded, mel_padded, text_lengths, mel_lengths)
+        text_padded, text_lengths, mel_padded, mel_lengths, end_logits_padded, max_text_len, max_mel_len = [
+            x.cuda() if type(x) != int else x for x in batch
+        ]
+        mel_pred, end_logits_pred = model(text_padded, mel_padded, text_lengths, mel_lengths, max_text_len, max_mel_len)
         loss = loss_fn(mel_pred, mel_padded, end_logits_pred, end_logits_padded, mel_lengths)
         running_loss += loss.sum().item()
         loss.sum().backward()
@@ -44,10 +44,10 @@ def eval_fn(model, dataloader):
     model.eval()
     with torch.no_grad():
         for num, batch in tqdm(enumerate(dataloader), total=len(dataloader)):
-            text_padded, text_lengths, mel_padded, mel_lengths, end_logits_padded = [
-                x.cuda() for x in batch
-            ]        
-            mel_pred, end_logits_pred = model(text_padded, mel_padded, text_lengths, mel_lengths)
+            text_padded, text_lengths, mel_padded, mel_lengths, end_logits_padded, max_text_len, max_mel_len = [
+                x.cuda() if type(x) != int else x for x in batch
+            ]
+            mel_pred, end_logits_pred = model(text_padded, mel_padded, text_lengths, mel_lengths, max_text_len, max_mel_len)
             loss = loss_fn(mel_pred, mel_padded, end_logits_pred, end_logits_padded, mel_lengths)
             running_loss += loss.item()
         

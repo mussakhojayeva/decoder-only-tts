@@ -89,7 +89,9 @@ class DecoderTTS(nn.Module):
         text: torch.Tensor,
         mel: torch.Tensor,
         text_lengths: torch.Tensor,
-        mel_lengths: torch.Tensor
+        mel_lengths: torch.Tensor,
+        max_text_len: int,
+        max_mel_len: int
         
     ):
         #text = text[:,:text_lengths.max().item()]
@@ -100,10 +102,9 @@ class DecoderTTS(nn.Module):
         tokens = self.text_emb(text)
         tokens += self.text_pos_emb(tokens)
         text_seq_len = tokens.shape[1] #+ 1 ## one for <bos>
-        set_trace()
         
-        text_mask = get_mask_from_lengths(text_lengths)
-        mel_mask = get_mask_from_lengths(mel_lengths)
+        text_mask = get_mask_from_lengths(text_lengths, max_text_len)
+        mel_mask = get_mask_from_lengths(mel_lengths, max_mel_len)
 
         masks = torch.cat((text_mask, mel_mask), dim = 1)
         if mel.nelement() > 0:
