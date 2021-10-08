@@ -8,30 +8,25 @@ import torch
 
 def collate_fn(batch):
     
-    text_lengths, ids_sorted_decreasing = torch.sort(
-    torch.LongTensor([len(x[0]) for x in batch]),
-    dim=0, descending=True)
-    max_text_len = text_lengths[0].item()
-    
-    text_padded = torch.zeros(len(batch), max_text_len, dtype=torch.long)
-    for i in range(len(ids_sorted_decreasing)):
-        text = batch[ids_sorted_decreasing[i]][0]
-        text_padded[i, :text.size(0)] = text
-        
-    num_mels = batch[0][1].size(1)
+    batch_size = len(batch)
+    max_text_len = max([x[0].size(0) for x in batch])
     max_mel_len = max([x[1].size(0) for x in batch])
+    num_mels = batch[0][1].size(1)
     
-    mel_padded = torch.zeros(len(batch), max_mel_len, num_mels)
+    text_padded = torch.zeros(batch_size, max_text_len, dtype=torch.long)
+    mel_padded = torch.zeros(batch_size, max_mel_len, num_mels)
     stop_padded = torch.zeros(len(batch), max_mel_len)
-    mel_lengths = torch.LongTensor(len(batch))
-        
-    for i in range(len(ids_sorted_decreasing)):
-        mel = batch[ids_sorted_decreasing[i]][1]
+    text_lengths, mel_lengths = torch.zeros(batch_size, dtype=torch.long), torch.zeros(batch_size, dtype=torch.long)
+    
+    for i, (text, mel) in enumerate(batch):
+        text_padded[i, :text.size(0)] = text
+        text_lengths[i] = text.size(0)
         mel_padded[i, :mel.size(0), :] = mel
-        stop_padded[i, mel.size(0)-1:] = 1
         mel_lengths[i] = mel.size(0)
+        stop_padded[i, mel.size(0)-1:] = 1
      
-    return text_padded, text_lengths, mel_padded, mel_lengths, stop_padded, max_text_len, max_mel_len
+    return text_padded, text_lengths, mel_padded, mel_lengths, stop_padded
+
 
 
 class PrepareDataset(Dataset):
@@ -49,9 +44,6 @@ class PrepareDataset(Dataset):
             self.csv_file = df[df.iloc[:, 0].isin(wav_files)]
 
             self.token_list = {char.lower() for utt in list(self.csv_file.iloc[:, 1]) for char in utt}
-            ## handle space 
-            self.token_list.remove(" ")
-            self.token_list.add("<space>")
             self.token_list.add(self.unk)
             self.token2id: Dict[str, int] = {}
             self.token2id = {t:i for i, t in enumerate(self.token_list)}
@@ -82,4 +74,4 @@ class PrepareDataset(Dataset):
         tokenized_text = self.tokenize(text)
         mel = np.load(mel_path)
         
-        return torch.LongTensor(tokenized_text), torch.FloatTensor(mel)
+        return torch.tensor(tokenized_text), torch.FloatTensor(mel)

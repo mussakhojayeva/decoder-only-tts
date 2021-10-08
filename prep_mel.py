@@ -72,13 +72,12 @@ def main():
     
     df.value = df.value.apply(process_text)
     utt2text = dict(zip(df.id, df.value))
-    print(df)
-    return
     wav_files =  glob.glob(wav_dir + '/*.wav')
 
     scaler = StandardScaler()
     max_dur = 20
     utt2mel = {}
+    mel2len = {}
     for wav in tqdm(wav_files):
         if get_duration(wav) > max_dur: continue
         audio, sample_rate = soundfile.read(wav)
@@ -94,57 +93,20 @@ def main():
         )
         
         scaler.partial_fit(mel)
+        input_length = len(utt2text[utt_id]) + mel.shape[0]
         utt2mel[utt_id] = mel
+        mel2len[utt_id] = input_length
     print(len(wav_files)-len(utt2mel), "utterances ignored")
+    ## need for sorted batch sampler
+    with open(os.path.join('utt2shape'), 'w', encoding='utf-8') as f:
+        for key, val in mel2len.items():
+            f.write(key+' '+str(val)+'\n')
     
     for utt_id, mel in utt2mel.items():
         mel = scaler.transform(mel)
         np.save(os.path.join(dumpdir, f"{utt_id}-feats.npy"), mel.astype(np.float32), allow_pickle=False)
 
-# +
-mel2len = {}
-for wav in tqdm(glob.glob(wav_dir + '/*.wav')):
-    if get_duration(wav) > 20: continue
-    audio, sample_rate = soundfile.read(wav)
-    utt_id = os.path.basename(wav).replace('.wav', '')
-    mel = logmelfilterbank(
-        audio,
-        sampling_rate=sample_rate,
-        hop_size=300, #300
-        fft_size=2048, #2048
-        win_length=1200, #1200
-        fmin=80,
-        fmax=7600
-    )
-    input_length = len(utt2text[utt_id]) + mel.shape[0]
-    mel2len[utt_id] = input_length
-    
-#print(len(wav_files)-len(utt2mel), "utterances ignored")
-# -
 
-with open(os.path.join('utt2shape'), 'w', encoding='utf-8') as f:
-    for key, val in mel2len.items():
-        f.write(key+' '+str(val)+'\n')
-
-len(mel2len)
-
-# +
-wav_dir = 'data/RUSLAN_24k'
-dumpdir = "data/RUSLAN_dump"
-df = pd.read_csv('data/metadata_RUSLAN_22200.csv', sep='|', header=None, names=['id', 'value'])
-
-def process_text(text):
-    text = text.lower()
-    text = re.sub(r'\s+', ' ', text)
-    text = text.strip()
-    return text
-
-df.value = df.value.apply(process_text)
-utt2text = dict(zip(df.id, df.value))
-
-# -
-
-utt2text
 
 if __name__ == "__main__":
     main()        

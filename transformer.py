@@ -1,7 +1,7 @@
+import torch
 from torch import nn
 import torch.nn.functional as F
-
-
+from pdb import set_trace
 class Linear(nn.Linear):
     def __init__(self,
                  in_dim,
@@ -28,27 +28,24 @@ class TransformerDecoderLayer(nn.Module):
         self.linear1 = Linear(d_model, dim_feedforward, w_init_gain=activation)
         self.linear2 = Linear(dim_feedforward, d_model)
 
-        self.norm1 = nn.LayerNorm(d_model)
-        self.norm2 = nn.LayerNorm(d_model)
-        self.norm3 = nn.LayerNorm(d_model)
+        self.norm = nn.LayerNorm(d_model)
 
         self.dropout = nn.Dropout(dropout)
 
     def forward(self,
                 tgt, tgt_mask=None, tgt_key_padding_mask=None):
-        
         tgt2, dec_align = self.self_attn(tgt,
                                          tgt,
                                          tgt,
                                          attn_mask=tgt_mask,
                                          key_padding_mask=tgt_key_padding_mask)
+        
         tgt = tgt + self.dropout(tgt2)
-        tgt = self.norm1(tgt)
+        tgt = self.norm(tgt)
         
         tgt2 = self.linear2(self.dropout(F.relu(self.linear1(tgt))))
         tgt = tgt + self.dropout(tgt2)
-        tgt = self.norm3(tgt)
         
-        return tgt
+        return tgt, dec_align
 
 

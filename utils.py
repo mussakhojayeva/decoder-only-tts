@@ -4,6 +4,8 @@ import os, copy
 from scipy import signal
 import hparams as hp
 import torch as t
+import pdb
+import matplotlib.pyplot as plt
 
 def get_spectrograms(fpath):
     '''Parse the wave file in `fpath` and
@@ -51,9 +53,56 @@ def get_spectrograms(fpath):
     return mel, mag
 
 
-def get_mask_from_lengths(lengths, max_seq_len=None):
-    if max_seq_len: max_len = max_seq_len
-    else: max_len = t.max(lengths).item()
-    ids = lengths.new_tensor(t.arange(0, max_len)).cuda()
-    mask = (lengths.unsqueeze(1) <= ids).cuda()
+def generate_square_subsequent_mask(sz):
+        mask = (t.triu(t.ones(sz, sz)) == 1).transpose(0, 1)
+        mask = mask.float().masked_fill(mask == 0, float('-inf')).masked_fill(mask == 1, float(0.0))
+        return mask
+
+def get_mask_from_lengths(lengths):
+    max_len = t.max(lengths).item()
+    ids = lengths.new_tensor(t.arange(0, max_len)).to(lengths.device)
+    mask = (lengths.unsqueeze(1) <= ids)
     return mask
+
+def plot_melspec(target, melspec, melspec_post, mel_lengths):
+    fig, axes = plt.subplots(3, 1, figsize=(20,30))
+    T = mel_lengths[-1]
+    target = target.cpu()
+    melspec = melspec.cpu()
+    melspec_post = melspec_post.cpu()
+    
+
+    axes[0].imshow(target[-1][:T,:],
+                   origin='lower',
+                   aspect='auto')
+
+    axes[1].imshow(melspec[-1][:T,:],
+                   origin='lower',
+                   aspect='auto')
+
+    axes[2].imshow(melspec_post[-1][:T,:],
+                   origin='lower',
+                   aspect='auto')
+
+    return fig
+
+def plot_gate(gate_out):
+    gate_out = gate_out.cpu()
+    fig = plt.figure(figsize=(10,5))
+    plt.plot(t.sigmoid(gate_out[-1]))
+    return fig
+
+def plot_alignments(alignments, token_lengths):
+    alignments = alignments.cpu()
+    fig, axes = plt.subplots(hp.n_layers, 1, figsize=(5,5*hp.n_layers))
+    T = token_lengths[-1]
+    n_layers = alignments.size(1)
+
+    for layer in range(n_layers):
+        align = alignments[-1, layer].contiguous()
+        axes[layer].imshow(align[:T, :T], aspect='auto')
+        axes[layer].xaxis.tick_top()
+
+    return fig
+
+
