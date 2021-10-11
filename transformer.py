@@ -1,45 +1,34 @@
 import torch
 from torch import nn
 import torch.nn.functional as F
-from pdb import set_trace
-class Linear(nn.Linear):
-    def __init__(self,
-                 in_dim,
-                 out_dim,
-                 bias=True,
-                 w_init_gain='linear'):
-        super(Linear, self).__init__(in_dim,
-                                     out_dim,
-                                     bias)
-        nn.init.xavier_uniform_(self.weight,
-                                gain=nn.init.calculate_gain(w_init_gain))
+import pdb
+from attention import Attention
 
 
-class TransformerDecoderLayer(nn.Module):
-    def __init__(self,
-                 d_model,
-                 nhead,
-                 dim_feedforward=2048,
-                 dropout=0.1,
-                 activation="relu"):
-        super(TransformerDecoderLayer, self).__init__()
-        self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout, batch_first=True)
+class TransformerLayer(nn.Module):
+    def __init__(
+        self,
+        dim,
+        causal = True,
+        heads = 4,
+        dim_head = 64,
+        ff_dim=2048,
+        stable = False,
+        dropout=0.1
+    ):
+        super().__init__()
+        
+        self.attn = Attention(dim, causal = causal, stable = stable, heads = heads, dim_head = dim_head)
 
-        self.linear1 = Linear(d_model, dim_feedforward, w_init_gain=activation)
-        self.linear2 = Linear(dim_feedforward, d_model)
+        self.linear1 = nn.Linear(dim, ff_dim)
+        self.linear2 = nn.Linear(ff_dim, dim)
 
-        self.norm = nn.LayerNorm(d_model)
+        self.norm = nn.LayerNorm(dim)
 
         self.dropout = nn.Dropout(dropout)
 
-    def forward(self,
-                tgt, tgt_mask=None, tgt_key_padding_mask=None):
-        tgt2, dec_align = self.self_attn(tgt,
-                                         tgt,
-                                         tgt,
-                                         attn_mask=tgt_mask,
-                                         key_padding_mask=tgt_key_padding_mask)
-        
+    def forward(self, tgt, tgt_key_padding_mask=None, positions_bias=None):
+        tgt2, dec_align = self.attn(tgt, mask=tgt_key_padding_mask, positions_bias=positions_bias)
         tgt = tgt + self.dropout(tgt2)
         tgt = self.norm(tgt)
         
@@ -47,5 +36,9 @@ class TransformerDecoderLayer(nn.Module):
         tgt = tgt + self.dropout(tgt2)
         
         return tgt, dec_align
-
-
+        
+        
+        
+     
+        
+        

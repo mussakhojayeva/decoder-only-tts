@@ -1,8 +1,10 @@
 import wandb
+import matplotlib.pyplot as plt
+
 def init_wandb(m):
     wandb.init(project='transformer-decoder', entity='dhcppc0')
     wandb.watch(m)
-    
+
 def log_wandb(epoch, train_loss, val_loss, spec_fig, gate_fig, alignment_fig):
     wandb.log({
                 "Epoch": epoch,
@@ -15,5 +17,10 @@ def log_wandb(epoch, train_loss, val_loss, spec_fig, gate_fig, alignment_fig):
                 "val_alignment": wandb.Image(alignment_fig)
         
             })
+    plt.close(spec_fig)
+    plt.close(gate_fig)
+    plt.close(alignment_fig)
+
+    
 
         

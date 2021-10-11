@@ -1,4 +1,3 @@
-# #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 from argparse import ArgumentParser
 
@@ -12,6 +11,7 @@ from torch.utils.data import DataLoader
 from torch.nn.parallel import DistributedDataParallel as DDP
 import torch.distributed as dist
 from torch.utils.data.distributed import DistributedSampler
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 import torch.multiprocessing as mp
 
 from model import DecoderTTS
@@ -33,12 +33,12 @@ def init_process(rank, size, backend='nccl'):
 
 def get_model():
     return DecoderTTS(idim=hp.hidden_dim)
-    
+
 def get_dataloader(rank, world_size):
    
     dataset = PrepareDataset(hp.meta_file, hp.dumpdir)
     
-    train_size = int(0.95 * len(dataset))
+    train_size = int(0.9 * len(dataset))
     val_size = len(dataset) - train_size
     train_set, val_set = torch.utils.data.random_split(dataset, [train_size, val_size])
     
@@ -59,25 +59,25 @@ def get_dataloader(rank, world_size):
     
     return train_loader, val_loader
 
-    
+
 def train(rank, world_size):
     init_process(rank, world_size)
     print(f"Rank {rank}/{world_size} training process initialized.\n")
+    torch.cuda.set_device(rank)
     # master process gets data
     if rank == 0:
         get_dataloader(rank, world_size)
         get_model()
-    
     dist.barrier()
     
     m = get_model()
-    m.cuda(rank)
+    m.cuda()
     m = DDP(m, device_ids=[rank])
     train_loader, val_loader = get_dataloader(rank, world_size)
     
     optimizer = torch.optim.Adam(m.parameters(), lr=0.0001  * world_size)
     l1_loss = torch.nn.L1Loss()
-    bce_loss = torch.nn.BCEWithLogitsLoss()
+    bce_loss = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor(hp.bce_weights))
     
     n_epochs = hp.n_epochs
     
@@ -87,8 +87,8 @@ def train(rank, world_size):
     
     best_loss = 1e10 
     for epoch in range(n_epochs):
-        train_loss = trainer.train_fn(m, train_loader, optimizer, l1_loss, bce_loss, rank)
-        val_loss, spec_fig, gate_fig, alignment_fig = trainer.eval_fn(m, val_loader, l1_loss, bce_loss, rank)
+        train_loss = trainer.train_fn(m, train_loader, optimizer, l1_loss, bce_loss)
+        val_loss, spec_fig, gate_fig, alignment_fig = trainer.eval_fn(m, val_loader, l1_loss, bce_loss)
         print(f'TRAIN LOSS = {sum(train_loss)} | VAL LOSS = {sum(val_loss)} | \n')
 
         # Log the loss and accuracy values at the end of each epoch
@@ -96,13 +96,20 @@ def train(rank, world_size):
             
         if best_loss > sum(val_loss):
             best_loss = sum(val_loss)
-            torch.save(m.state_dict(), 'checkpoints/model_'+str(epoch)+'.pth')
+            torch.save(m.state_dict(), 'checkpoints/model'+str(epoch)+'.pth')
     dist.destroy_process_group()
-    
+
 WORLD_SIZE = torch.cuda.device_count()            
 def main():
-    mp.spawn(train, args=(WORLD_SIZE,),
-        nprocs=WORLD_SIZE, join=True)
-    
+    try: 
+        mp.spawn(train, args=(WORLD_SIZE,),
+                nprocs=WORLD_SIZE, join=True)
+    except KeyboardInterrupt:
+        print('Interrupted')
+        try: 
+            dist.destroy_process_group()  
+        except KeyboardInterrupt: 
+            os.system("kill $(ps aux | grep multiprocessing.spawn | grep -v grep | awk '{print $2}') ")
+
 if __name__ == "__main__":
     main()

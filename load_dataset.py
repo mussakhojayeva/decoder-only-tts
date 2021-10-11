@@ -60,7 +60,6 @@ class PrepareDataset(Dataset):
         text = self.whitespace_clean(text).lower()
         tokens = []
         for token in text:
-            if token == " ": token = "<space>"
             if token in self.token2id:
                 token_id = self.token2id[token]
             else: token_id = self.token2id[self.unk]
@@ -74,4 +73,4 @@ class PrepareDataset(Dataset):
         tokenized_text = self.tokenize(text)
         mel = np.load(mel_path)
         
-        return torch.tensor(tokenized_text), torch.FloatTensor(mel)
+        return torch.tensor(tokenized_text), torch.tensor(mel, dtype=torch.float)

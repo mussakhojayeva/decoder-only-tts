@@ -15,9 +15,10 @@ max_db=0 ## check
 ################################
 # Model Parameters             #
 # ###############################
+bce_weights=7
 batch_size=32
 n_epochs=200
 hidden_dim=512
 n_heads=4
 n_layers=6
-ff_dim=1024
+att_num_buckets=32
