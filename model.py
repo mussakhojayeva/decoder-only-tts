@@ -5,7 +5,7 @@ import numpy as np
 from pdb import set_trace
 import math
 
-from utils import get_mask_from_lengths
+from utils import get_mask_from_lengths, generate_square_subsequent_mask
 import hparams as hp
 from transformer import TransformerLayer
 
@@ -92,14 +92,13 @@ class DecoderTTS(nn.Module):
         
         self.padding_idx = 0
         self.n_mels = hp.num_mels
-        num_text_tokens = len(token2id) if token2id else 62
+        num_text_tokens = len(token2id) if token2id else 50
         
         self.eos = num_text_tokens-1
         
         self.text_emb = nn.Embedding(num_embeddings=num_text_tokens, 
                                      embedding_dim=idim, 
                                      padding_idx=self.padding_idx)
-        #self.mel_emb = nn.Linear(self.n_mels, idim, bias=True)
         self.mel_emb = Prenet(self.n_mels, idim)
         
         self.att_num_buckets = hp.att_num_buckets
@@ -117,7 +116,7 @@ class DecoderTTS(nn.Module):
         self.stop_linear = nn.Linear(idim, 1)
         
         self.Decoder = nn.ModuleList([TransformerLayer(dim=idim,
-                                                      heads=hp.n_heads, causal=True, stable=False)
+                                                      heads=hp.n_heads, stable=False)
                               for _ in range(hp.n_layers)])
 
     def compute_position_bias(self, x, num_buckets):
@@ -135,7 +134,6 @@ class DecoderTTS(nn.Module):
         values = self.relative_attention_bias(rp_bucket)
         values = values.permute([2, 0, 1])#.unsqueeze(0)
         values = values.expand((bsz, -1, qlen, klen)).contiguous()
-        #values = values.view(-1, qlen, klen)
         return values 
     
     @staticmethod
@@ -207,13 +205,15 @@ class DecoderTTS(nn.Module):
         
         out = tokens
         positions_bias = self.compute_position_bias(out, self.att_num_buckets)
-        
+        causal_mask = generate_square_subsequent_mask(out.shape[1], text_seq_len)
+         
         att_ws = []
         for layer in self.Decoder:
-            out, att_w = layer(out, tgt_key_padding_mask=masks, positions_bias=positions_bias)
+            out, att_w = layer(out, padding_mask=masks, 
+                               positions_bias=positions_bias, causal_mask=causal_mask)
             att_ws += [att_w]
         att_ws = torch.stack(att_ws, dim=1)
-                
+
         stop_tokens = self.stop_linear(out[:, text_seq_len:, :])
         mel_out = self.mel_linear(out[:, text_seq_len:, :])
         post_out = self.postnet(mel_out.transpose(2,1)).transpose(2,1)

@@ -16,19 +16,16 @@ def stable_softmax(t, dim = -1, alpha = 32 ** 2):
     return (t * alpha).softmax(dim = dim)
 
 class Attention(nn.Module):
-    def __init__(self, dim, causal = True, heads = 8, dim_head = 64, stable = False):
+    def __init__(self, dim, heads = 8, dim_head = 64, stable = False):
         super().__init__()
         inner_dim = dim_head *  heads
         self.heads = heads
         self.scale = dim_head ** -0.5
-
         self.stable = stable
-        self.causal = causal
-
         self.to_qkv = nn.Linear(dim, inner_dim * 3, bias = False)
         self.to_out = nn.Linear(inner_dim, dim)
 
-    def forward(self, x, mask = None, positions_bias=None, need_weights=True):
+    def forward(self, x, padding_mask = None, positions_bias=None, causal_mask = None):
         b, n, _, h = *x.shape, self.heads
         softmax = torch.softmax if not self.stable else stable_softmax
 
@@ -40,15 +37,14 @@ class Attention(nn.Module):
         dots = torch.einsum('b h i d, b h j d -> b h i j', q, k)
         mask_value = max_neg_value(dots)
 
-        if exists(mask):
-            mask = rearrange(mask, 'b j -> b () () j')
-            dots.masked_fill_(mask, mask_value)
-            del mask
+        if exists(padding_mask):
+            padding_mask = rearrange(padding_mask, 'b j -> b () () j')
+            dots.masked_fill_(padding_mask, mask_value)
             
-        if self.causal:
-            i, j = dots.shape[-2:]
-            mask = torch.ones(i, j).cuda().triu_(j - i + 1).bool()
-            dots.masked_fill_(mask, mask_value)
+        if exists(causal_mask):
+            #i, j = dots.shape[-2:]
+            #mask = torch.ones(i, j).cuda().triu_(j - i + 1).bool()
+            dots.masked_fill_(causal_mask, mask_value)
             
         if exists(positions_bias):
             dots += positions_bias

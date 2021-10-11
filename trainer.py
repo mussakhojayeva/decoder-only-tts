@@ -53,7 +53,7 @@ def eval_fn(model, dataloader, l1_loss, bce_loss):
             running_loss[1] += end_loss.item()
         spec_fig = utils.plot_melspec(mel_padded, mel_out, mel_out_post, mel_lengths)
         gate_fig = utils.plot_gate(stop_tokens)
-        alignment_fig = utils.plot_alignments(att_ws, mel_lengths)
+        alignment_fig = utils.plot_alignments(att_ws, text_lengths, mel_lengths)
         
     epoch_loss = [loss/len(dataloader) for loss in running_loss]
     

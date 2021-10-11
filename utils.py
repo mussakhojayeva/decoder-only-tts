@@ -56,6 +56,14 @@ def get_spectrograms(fpath):
 
     return mel, mag
 
+def generate_square_subsequent_mask(sz, text_seq_len):
+    mask = t.ones((sz, sz)).cuda().triu_(1).bool()
+    ## remove masks for text
+    for i in range(text_seq_len):
+        mask[i][:text_seq_len] = False
+    return mask
+
+
 def get_mask_from_lengths(lengths):
     max_len = t.max(lengths).item()
     ids = lengths.new_tensor(t.arange(0, max_len)).to(lengths.device)
@@ -90,15 +98,15 @@ def plot_gate(gate_out):
     plt.plot(t.sigmoid(gate_out[0]))
     return fig
 
-def plot_alignments(alignments, token_lengths):
+def plot_alignments(alignments, text_lengths, mel_lengths):
     alignments = alignments.cpu()
     fig, axes = plt.subplots(hp.n_layers, 1, figsize=(5,5*hp.n_layers))
-    T = token_lengths[-1]
+    len_mel = mel_lengths[-1]
+    len_text = text_lengths[-1]
     n_layers = alignments.size(1)
     for layer in range(n_layers):
-        align = alignments[0, layer].contiguous()
-        axes[layer].imshow(align[:, :], aspect='auto')
-        axes[layer].xaxis.tick_top()
+        align = alignments[-1, layer].contiguous()
+        axes[layer].imshow(align[:(len_text+len_mel), :(len_text+len_mel)], aspect='auto', origin='lower')
 
     return fig
 
